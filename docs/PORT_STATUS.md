@@ -1,28 +1,32 @@
 # Port status
 
-Nothing of libwebp has been translated yet. WP0 bootstrapped the repository:
-every upstream unit has its Rust module with a provenance header and no code,
-the C oracle and the differential harness work, and the baseline below is
-recorded. The integrator aggregates this page from the package pages in
-[docs/status](status/) after each wave; packages never edit it.
+Waves 0 to 2 are merged (state of 7 November 2026, `main` after PR 13). The
+shared utilities, the bit I/O, the DSP, SharpYUV, the lossless shared code,
+both lossless codecs (VP8L decoder and encoder), the VP8 decoder core and the
+encoder's picture and configuration units are translated and verified against
+the C oracle in its release, debug and asan-ubsan variants, on macOS ARM64 and
+Linux x86-64. Nothing of the public API is exported yet: the integration
+packages (WP12, WP13), the demuxer and muxer, the animation code and the safe
+Rust APIs are wave 3 and 4. The integrator aggregates this page from the package
+pages in [docs/status](status/) after each wave; packages never edit it.
 
 ## Packages
 
 | Package | Sub-wave | Status | Page |
 | --- | --- | --- | --- |
 | WP0 bootstrap | 0 | done (local host and CI) | [wp0](status/wp0.md) |
-| WP1 types, memory, workers | 1a | not started | [wp1](status/wp1.md) |
-| WP2 bit I/O | 1b | not started | [wp2](status/wp2.md) |
-| WP3 lossless shared | 1c | not started | [wp3](status/wp3.md) |
-| WP4 pixel ops | 1b | not started | [wp4](status/wp4.md) |
-| WP5 SharpYUV | 1b | not started | [wp5](status/wp5.md) |
-| WP6 VP8 decoder core | 2b | not started | [wp6](status/wp6.md) |
-| WP7 VP8L decoder | 2a | not started | [wp7](status/wp7.md) |
+| WP1 types, memory, workers | 1a | done, PR 1 (PR 6 excludes zero-size allocations from the differential) | [wp1](status/wp1.md) |
+| WP2 bit I/O | 1b | done, PR 4; readers store positions, the input is passed per call (ADR 0003, "Readers over input") | [wp2](status/wp2.md) |
+| WP3 lossless shared | 1c | done, PR 7; four `lossless_common.h` inline functions moved to WP11 | [wp3](status/wp3.md) |
+| WP4 pixel ops | 1b | done, PR 5; the rescaler owns its side rows and takes the output per call since PR 9, and exports by a signed stride since PR 12 | [wp4](status/wp4.md) |
+| WP5 SharpYUV | 1b | done, PR 3 | [wp5](status/wp5.md) |
+| WP6 VP8 decoder core | 2b | done, PR 12; the `put` hook and the alpha rows run on the calling thread at `Sync` (ADR 0003, "Threads") | [wp6](status/wp6.md) |
+| WP7 VP8L decoder | 2a | done, PR 10; decoding context per call (ADR 0003) | [wp7](status/wp7.md) |
 | WP8 demux | 3b | not started | [wp8](status/wp8.md) |
-| WP9 encoder picture and config | 2a | not started | [wp9](status/wp9.md) |
-| WP10 VP8 encoder core | 2c | not started | [wp10](status/wp10.md) |
-| WP11 VP8L encoder | 2b | not started | [wp11](status/wp11.md) |
-| WP12 decoder integration | 3a | not started | [wp12](status/wp12.md) |
+| WP9 encoder picture and config | 2a | done, PR 8 (PR 11 adapts `RescalePlane` to the PR 9 rescaler); shared views (ADR 0003) | [wp9](status/wp9.md) |
+| WP10 VP8 encoder core | 2c | not started; its dependencies are merged | [wp10](status/wp10.md) |
+| WP11 VP8L encoder | 2b | done, PR 13; the side context runs on a scoped thread | [wp11](status/wp11.md) |
+| WP12 decoder integration | 3a | not started; its dependencies are merged | [wp12](status/wp12.md) |
 | WP13 encoder integration | 3b | not started | [wp13](status/wp13.md) |
 | WP14 animation decode and demux ABI | 3c | not started | [wp14](status/wp14.md) |
 | WP15 mux and animation encode | 4 | not started | [wp15](status/wp15.md) |
@@ -38,6 +42,24 @@ The sub-waves follow libwebp's call graph. [WORKPLAN.md](WORKPLAN.md) lists
 each package's dependencies and the function- and type-level exceptions, and
 `tools/check.py --oracle` checks them against the oracle's cross-unit
 references.
+
+## Integration notes
+
+- **Representation decisions** taken between the packages are recorded as dated
+  amendments of [ADR 0003](adr/0003-rust-representation.md): readers over input
+  (WP2), untyped sample buffers (WP5), raw data and buffers and planes (WP1,
+  WP9), shared views (WP9), decoding context per call (WP7) and the thread rule
+  for workers that outlive a call (WP6) or live inside one (WP11). Each package
+  page lists its not-applicable checks, its PORTING rule 8 exclusions and its
+  recorded deviations, and ends with notes for the packages that build on it.
+- **Interface changes after a merge** go through their own PR or commit, and the
+  next PR is checked against the new `main` before it merges: PR 8 and PR 9
+  were each green on their own branch and did not compile together (PR 11 fixed
+  `RescalePlane`). PR 12 and PR 13 were compiled together before merging.
+- **Open for wave 3.** WP10 (VP8 encoder core) and WP12 (decoder integration)
+  can start; WP8 and WP13 follow WP12. The incremental decoder (WP12) must pass
+  the same `data` and `alpha_data` slices to every call of one decoding, as the
+  WP6 notes describe.
 
 ## Oracle baseline
 
